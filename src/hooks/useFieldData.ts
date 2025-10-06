@@ -38,13 +38,10 @@ export const useFieldData = () => {
 
   const getFundosByEmpresa = (empresa: string): string[] => {
     if (!fieldData?.hierarchical || !fieldData.hierarchical[empresa]) {
-      console.log('🔍 No hierarchical data for empresa:', empresa);
       return [];
     }
     
-    const fundos = Object.keys(fieldData.hierarchical[empresa]);
-    console.log('🔍 Fundos for empresa', empresa, ':', fundos);
-    return fundos;
+    return Object.keys(fieldData.hierarchical[empresa]);
   };
 
   const getSectoresByEmpresaAndFundo = (empresa: string, fundo: string): string[] => {

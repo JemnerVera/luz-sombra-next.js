@@ -112,8 +112,21 @@ class GoogleSheetsService {
       const clientSecret = credentials.installed?.client_secret || credentials.client_secret;
       const redirectUris = credentials.installed?.redirect_uris || credentials.redirect_uris;
       
+      console.log('🔍 Credenciales detectadas:', {
+        hasClientId: !!clientId,
+        hasClientSecret: !!clientSecret,
+        hasRedirectUris: !!redirectUris,
+        redirectUrisLength: redirectUris?.length || 0,
+        firstRedirectUri: redirectUris?.[0] || 'none'
+      });
+      
       if (!clientId || !clientSecret || !redirectUris || !redirectUris[0]) {
-        throw new Error('Credenciales incompletas');
+        console.error('❌ Credenciales incompletas:', {
+          clientId: clientId ? 'presente' : 'ausente',
+          clientSecret: clientSecret ? 'presente' : 'ausente',
+          redirectUris: redirectUris ? `array con ${redirectUris.length} elementos` : 'ausente'
+        });
+        throw new Error('Credenciales incompletas - verificar configuración de Google OAuth');
       }
       
       const oauth2Client = new google.auth.OAuth2(

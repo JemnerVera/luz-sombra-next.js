@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useFieldData } from '../hooks/useFieldData';
+import { useTensorFlow } from '../hooks/useTensorFlow';
 import { apiService } from '../services/api';
 import { ProcessingResult } from '../types';
 import { formatFileSize } from '../utils/helpers';
@@ -13,6 +14,7 @@ interface ModelTestFormProps {
 
 const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
   const { fieldData, loading: fieldLoading } = useFieldData();
+  const { isModelReady, isProcessing: tfProcessing, processImage } = useTensorFlow();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     empresa: '',
@@ -40,21 +42,39 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
       return;
     }
 
+    if (!isModelReady) {
+      onNotification('El modelo de TensorFlow no está listo. Por favor espera...', 'warning');
+      return;
+    }
+
     setProcessing(true);
     setResult(null);
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('file', selectedFile);
-      formDataToSend.append('empresa', formData.empresa);
-      formDataToSend.append('fundo', formData.fundo);
-
-      const result = await apiService.testModel(formDataToSend);
+      // Use TensorFlow.js for local processing
+      const tfResult = await processImage(selectedFile);
+      
+      // Create a ProcessingResult compatible with the UI
+      const result: ProcessingResult = {
+        success: true,
+        fileName: selectedFile.name,
+        empresa: formData.empresa,
+        fundo: formData.fundo,
+        porcentaje_luz: tfResult.lightPercentage,
+        porcentaje_sombra: tfResult.shadowPercentage,
+        processed_image_url: tfResult.processedImageData,
+        hilera: '',
+        numero_planta: '',
+        latitud: null,
+        longitud: null,
+        error: null
+      };
+      
       setResult(result);
-      onNotification('Prueba del modelo completada exitosamente', 'success');
+      onNotification('Prueba del modelo completada exitosamente con TensorFlow.js', 'success');
     } catch (error) {
       console.error('Error testing model:', error);
-      onNotification('Error al probar el modelo', 'error');
+      onNotification('Error al probar el modelo con TensorFlow.js', 'error');
     } finally {
       setProcessing(false);
     }
@@ -162,10 +182,11 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
       <div className="flex space-x-4">
         <button
           onClick={handleTestModel}
-          disabled={processing || !selectedFile || !formData.empresa || !formData.fundo}
+          disabled={processing || tfProcessing || !selectedFile || !formData.empresa || !formData.fundo || !isModelReady}
           className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
         >
-          {processing ? 'Probando Modelo...' : 'Probar Modelo'}
+          {processing || tfProcessing ? 'Probando Modelo...' : 
+           !isModelReady ? 'Inicializando TensorFlow...' : 'Probar Modelo con TensorFlow.js'}
         </button>
         <button
           onClick={handleClear}
