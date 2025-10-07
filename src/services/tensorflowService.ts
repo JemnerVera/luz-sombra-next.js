@@ -119,70 +119,24 @@ export class TensorFlowService {
   }
 
   /**
-   * Train the model with better data (hybrid approach for Vercel)
+   * Initialize super-efficient heuristic model (no training needed)
    */
   async trainModel(): Promise<void> {
     if (this.isTraining) {
-      console.log('⏳ Model already training, waiting...');
+      console.log('⏳ Model already initializing, waiting...');
       return;
     }
 
     try {
       this.isTraining = true;
-      const tensorflow = await loadTensorFlow();
+      console.log('🚀 Initializing super-efficient heuristic model...');
 
-      console.log('🚀 Training hybrid model for Vercel...');
-
-      // Generate rich training data with multiple features
-      const features = [];
-      const labels = [];
-
-      // Generate 200 samples with realistic light/shadow patterns
-      for (let i = 0; i < 200; i++) {
-        let r, g, b, brightness, contrast, edgeStrength;
-        
-        if (i < 100) {
-          // Light samples (bright, high contrast, low edge strength)
-          r = 0.5 + Math.random() * 0.5; // 0.5-1.0
-          g = 0.5 + Math.random() * 0.5;
-          b = 0.5 + Math.random() * 0.5;
-          brightness = 0.6 + Math.random() * 0.4; // 0.6-1.0
-          contrast = 0.3 + Math.random() * 0.4; // 0.3-0.7
-          edgeStrength = Math.random() * 0.3; // 0.0-0.3 (smooth areas)
-          labels.push([1, 0]); // Light
-        } else {
-          // Shadow samples (dark, low contrast, high edge strength)
-          r = Math.random() * 0.4; // 0.0-0.4
-          g = Math.random() * 0.4;
-          b = Math.random() * 0.4;
-          brightness = Math.random() * 0.4; // 0.0-0.4
-          contrast = Math.random() * 0.3; // 0.0-0.3
-          edgeStrength = 0.4 + Math.random() * 0.6; // 0.4-1.0 (edge areas)
-          labels.push([0, 1]); // Shadow
-        }
-        
-        features.push([r, g, b, brightness, contrast, edgeStrength]);
-      }
-
-      const xs = tensorflow.tensor2d(features);
-      const ys = tensorflow.tensor2d(labels);
-
-      // Enhanced training: 8 epochs with validation
-      await this.model.fit(xs, ys, {
-        epochs: 8, // More epochs for better learning
-        batchSize: 32, // Optimal batch size
-        validationSplit: 0.2, // Validation for better generalization
-        verbose: 0 // No logging
-      });
-
-      // Clean up tensors immediately
-      xs.dispose();
-      ys.dispose();
-
+      // No training needed for heuristic model
+      // Just mark as ready
       this.isModelLoaded = true;
-      console.log('✅ Hybrid model trained successfully');
+      console.log('✅ Super-efficient heuristic model ready (no training needed)');
     } catch (error) {
-      console.error('❌ Error training model:', error);
+      console.error('❌ Error initializing heuristic model:', error);
       throw error;
     } finally {
       this.isTraining = false;
@@ -190,13 +144,11 @@ export class TensorFlowService {
   }
 
   /**
-   * Classify image using region-based analysis (hybrid approach)
+   * Classify image using super-efficient heuristic analysis
    */
   async classifyImagePixels(imageData: ImageData): Promise<PixelClassificationResult> {
     try {
-      const tensorflow = await loadTensorFlow();
-      
-      if (!this.model || !this.isModelLoaded) {
+      if (!this.isModelLoaded) {
         throw new Error('Model not ready. Please initialize first.');
       }
 
@@ -205,27 +157,25 @@ export class TensorFlowService {
       let lightPixels = 0;
       let shadowPixels = 0;
 
-      console.log(`🔍 Processing image: ${width}x${height} pixels with region-based analysis`);
+      console.log(`🔍 Processing image: ${width}x${height} pixels with super-efficient heuristic`);
 
       // Initialize classification map
       for (let y = 0; y < height; y++) {
         classificationMap[y] = [];
       }
 
-      // Process image in regions (10x10 pixel blocks) for efficiency
-      const regionSize = 10;
-      const regions: number[][] = [];
-      const regionPositions: { x: number; y: number; width: number; height: number }[] = [];
-
-      // Sample regions from the image with multi-feature analysis
+      // Process image in regions (20x20 pixel blocks) for maximum efficiency
+      const regionSize = 20; // Larger regions for speed
+      
       for (let y = 0; y < height - regionSize; y += regionSize) {
         for (let x = 0; x < width - regionSize; x += regionSize) {
-          // Calculate multiple features for this region
+          // Calculate multiple criteria for this region
           let totalR = 0, totalG = 0, totalB = 0;
           let pixelCount = 0;
-          const pixelValues: number[] = [];
+          let minBrightness = 255;
+          let maxBrightness = 0;
 
-          // Collect pixel data
+          // Collect pixel data efficiently
           for (let dy = 0; dy < regionSize; dy++) {
             for (let dx = 0; dx < regionSize; dx++) {
               const pixelIndex = ((y + dy) * width + (x + dx)) * 4;
@@ -238,71 +188,52 @@ export class TensorFlowService {
               totalB += b;
               pixelCount++;
               
-              // Store brightness for contrast calculation
+              // Track brightness range for contrast
               const brightness = (r + g + b) / 3;
-              pixelValues.push(brightness);
+              minBrightness = Math.min(minBrightness, brightness);
+              maxBrightness = Math.max(maxBrightness, brightness);
             }
           }
 
           // Calculate features
-          const avgR = (totalR / pixelCount) / 255;
-          const avgG = (totalG / pixelCount) / 255;
-          const avgB = (totalB / pixelCount) / 255;
-          const brightness = (avgR + avgG + avgB) / 3;
+          const avgR = totalR / pixelCount;
+          const avgG = totalG / pixelCount;
+          const avgB = totalB / pixelCount;
+          const avgBrightness = (avgR + avgG + avgB) / 3;
+          const contrast = (maxBrightness - minBrightness) / 255;
           
-          // Calculate contrast (standard deviation of brightness)
-          const meanBrightness = pixelValues.reduce((sum, val) => sum + val, 0) / pixelValues.length;
-          const variance = pixelValues.reduce((sum, val) => sum + Math.pow(val - meanBrightness, 2), 0) / pixelValues.length;
-          const contrast = Math.sqrt(variance) / 255; // Normalize
+          // Advanced heuristic classification with multiple criteria
+          let lightScore = 0;
           
-          // Calculate edge strength (simplified gradient)
-          let edgeStrength = 0;
-          for (let dy = 0; dy < regionSize - 1; dy++) {
-            for (let dx = 0; dx < regionSize - 1; dx++) {
-              const pixelIndex1 = ((y + dy) * width + (x + dx)) * 4;
-              const pixelIndex2 = ((y + dy) * width + (x + dx + 1)) * 4;
-              const pixelIndex3 = ((y + dy + 1) * width + (x + dx)) * 4;
-              
-              const brightness1 = (data[pixelIndex1] + data[pixelIndex1 + 1] + data[pixelIndex1 + 2]) / 3;
-              const brightness2 = (data[pixelIndex2] + data[pixelIndex2 + 1] + data[pixelIndex2 + 2]) / 3;
-              const brightness3 = (data[pixelIndex3] + data[pixelIndex3 + 1] + data[pixelIndex3 + 2]) / 3;
-              
-              const gradientX = Math.abs(brightness2 - brightness1);
-              const gradientY = Math.abs(brightness3 - brightness1);
-              edgeStrength += Math.sqrt(gradientX * gradientX + gradientY * gradientY);
-            }
-          }
-          edgeStrength = (edgeStrength / ((regionSize - 1) * (regionSize - 1))) / 255; // Normalize
-
-          regions.push([avgR, avgG, avgB, brightness, contrast, edgeStrength]);
-          regionPositions.push({ x, y, width: regionSize, height: regionSize });
-        }
-      }
-
-      // Process all regions at once
-      if (regions.length > 0) {
-        const regionsTensor = tensorflow.tensor2d(regions);
-        
-        // Predict all regions
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const predictions = this.model.predict(regionsTensor) as any;
-        const predictionData = await predictions.data();
-        
-        // Apply results to classification map
-        for (let i = 0; i < regions.length; i++) {
-          const lightProb = predictionData[i * 2];
-          const shadowProb = predictionData[i * 2 + 1];
-          const classification = lightProb > shadowProb ? 0 : 1;
+          // Criterion 1: Brightness (40% weight)
+          if (avgBrightness > 180) lightScore += 40;
+          else if (avgBrightness > 120) lightScore += 20;
+          else if (avgBrightness > 80) lightScore += 10;
           
-          const pos = regionPositions[i];
+          // Criterion 2: Color balance (30% weight)
+          const colorBalance = Math.min(avgR, avgG, avgB) / Math.max(avgR, avgG, avgB);
+          if (colorBalance > 0.8) lightScore += 30; // Balanced colors (light)
+          else if (colorBalance > 0.6) lightScore += 15;
+          
+          // Criterion 3: Contrast (20% weight)
+          if (contrast > 0.3) lightScore += 20; // High contrast (light areas)
+          else if (contrast > 0.15) lightScore += 10;
+          
+          // Criterion 4: Color intensity (10% weight)
+          const maxColor = Math.max(avgR, avgG, avgB);
+          if (maxColor > 200) lightScore += 10; // High color intensity
+          else if (maxColor > 150) lightScore += 5;
+          
+          // Determine classification (threshold: 50 points)
+          const classification = lightScore >= 50 ? 0 : 1; // 0 = light, 1 = shadow
           
           // Apply classification to entire region
-          for (let dy = 0; dy < pos.height; dy++) {
-            for (let dx = 0; dx < pos.width; dx++) {
-              const y = pos.y + dy;
-              const x = pos.x + dx;
-              if (y < height && x < width) {
-                classificationMap[y][x] = classification;
+          for (let dy = 0; dy < regionSize; dy++) {
+            for (let dx = 0; dx < regionSize; dx++) {
+              const pixelY = y + dy;
+              const pixelX = x + dx;
+              if (pixelY < height && pixelX < width) {
+                classificationMap[pixelY][pixelX] = classification;
                 if (classification === 0) {
                   lightPixels++;
                 } else {
@@ -312,10 +243,6 @@ export class TensorFlowService {
             }
           }
         }
-        
-        // Clean up tensors
-        regionsTensor.dispose();
-        predictions.dispose();
       }
 
       const totalPixels = lightPixels + shadowPixels;
