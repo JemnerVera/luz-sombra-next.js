@@ -165,53 +165,32 @@ export class TensorFlowService {
         classificationMap[y] = [];
       }
 
-      // Process image in regions (10x10 pixel blocks) for good balance
-      const regionSize = 10;
+      // Process image pixel by pixel for maximum precision
       const threshold = 130; // Optimal threshold from labeled data analysis
       
-      for (let y = 0; y < height - regionSize; y += regionSize) {
-        for (let x = 0; x < width - regionSize; x += regionSize) {
-          // Calculate average brightness for this region
-          let totalR = 0, totalG = 0, totalB = 0;
-          let pixelCount = 0;
-
-          // Collect pixel data
-          for (let dy = 0; dy < regionSize; dy++) {
-            for (let dx = 0; dx < regionSize; dx++) {
-              const pixelIndex = ((y + dy) * width + (x + dx)) * 4;
-              const r = data[pixelIndex];
-              const g = data[pixelIndex + 1];
-              const b = data[pixelIndex + 2];
-              
-              totalR += r;
-              totalG += g;
-              totalB += b;
-              pixelCount++;
-            }
-          }
-
-          // Calculate average brightness
-          const avgBrightness = (totalR + totalG + totalB) / (3 * pixelCount);
+      console.log(`🔍 Processing ${width * height} pixels individually for maximum precision`);
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const pixelIndex = (y * width + x) * 4;
+          const r = data[pixelIndex];
+          const g = data[pixelIndex + 1];
+          const b = data[pixelIndex + 2];
+          
+          // Calculate brightness for this individual pixel
+          const brightness = (r + g + b) / 3;
           
           // Simple heuristic classification based on real data analysis
           // Threshold 130 was determined from labeled agricultural images
           // Expected distribution: ~61% light, ~39% shadow (excluding trunks)
-          const classification = avgBrightness > threshold ? 0 : 1; // 0 = light, 1 = shadow
+          const classification = brightness > threshold ? 0 : 1; // 0 = light, 1 = shadow
           
-          // Apply classification to entire region
-          for (let dy = 0; dy < regionSize; dy++) {
-            for (let dx = 0; dx < regionSize; dx++) {
-              const pixelY = y + dy;
-              const pixelX = x + dx;
-              if (pixelY < height && pixelX < width) {
-                classificationMap[pixelY][pixelX] = classification;
-                if (classification === 0) {
-                  lightPixels++;
-                } else {
-                  shadowPixels++;
-                }
-              }
-            }
+          // Apply classification to this pixel
+          classificationMap[y][x] = classification;
+          if (classification === 0) {
+            lightPixels++;
+          } else {
+            shadowPixels++;
           }
         }
       }
