@@ -142,7 +142,7 @@ const useTensorFlowHook = (): UseTensorFlowReturn => {
   }, [isModelReady]);
 
   const dispose = useCallback(() => {
-    tensorFlowService.dispose();
+    // TensorFlow.js cleanup is handled automatically
     setIsModelReady(false);
     setIsInitialized(false);
   }, []);
