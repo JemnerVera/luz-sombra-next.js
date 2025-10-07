@@ -24,6 +24,11 @@ export interface ImageFile {
     lat: number;
     lng: number;
   };
+  dateStatus: 'extracting' | 'found' | 'not-found';
+  dateTime?: {
+    date: string;
+    time: string;
+  };
   hilera?: string;
   numero_planta?: string;
 }
@@ -32,6 +37,7 @@ export interface ProcessingResult {
   success: boolean;
   fileName?: string;
   image_name?: string;
+  empresa?: string;
   hilera?: string;
   numero_planta?: string;
   porcentaje_luz?: number;

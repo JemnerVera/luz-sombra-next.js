@@ -48,7 +48,7 @@ export const apiService = {
 
   // Process single image
   processImage: async (formData: FormData): Promise<ProcessingResult> => {
-    const response = await api.post('/api/procesar-imagen-simple', formData, {
+    const response = await api.post('/api/procesar-imagen', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next out"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.12.2",
+    "canvas": "^3.2.0",
     "exif-js": "^2.3.0",
     "googleapis": "^161.0.0",
     "lucide-react": "^0.545.0",
     "next": "15.5.4",
+    "piexifjs": "^1.0.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-image-crop": "^11.0.10"

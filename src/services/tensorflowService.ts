@@ -10,12 +10,20 @@ export interface PixelClassificationResult {
 export class TensorFlowService {
   private model: tf.LayersModel | null = null;
   private isModelLoaded = false;
+  private isInitializing = false;
+  private isTraining = false;
 
   /**
    * Initialize TensorFlow.js
    */
   async initialize(): Promise<void> {
+    if (this.isInitializing) {
+      console.log('⏳ TensorFlow.js already initializing, waiting...');
+      return;
+    }
+
     try {
+      this.isInitializing = true;
       // Set backend to CPU for better compatibility
       await tf.setBackend('cpu');
       await tf.ready();
@@ -23,6 +31,8 @@ export class TensorFlowService {
     } catch (error) {
       console.error('❌ Error initializing TensorFlow.js:', error);
       throw error;
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -31,11 +41,20 @@ export class TensorFlowService {
    */
   async createModel(): Promise<void> {
     try {
+      // Check if model already exists and is ready
+      if (this.model && this.isModelLoaded) {
+        console.log('✅ Model already exists and is ready');
+        return;
+      }
+
       // Dispose existing model if it exists
       if (this.model) {
         this.model.dispose();
         this.model = null;
       }
+
+      // Clear any existing variables to prevent conflicts
+      tf.disposeVariables();
 
     // Create a model that matches the Python model structure
     this.model = tf.sequential({
@@ -97,7 +116,13 @@ export class TensorFlowService {
       throw new Error('Model not created');
     }
 
+    if (this.isTraining) {
+      console.log('⏳ Model already training, skipping...');
+      return;
+    }
+
     try {
+      this.isTraining = true;
       // Generate training data based on real dataset analysis
       const { features, labels } = this.generateTrainingData();
       
@@ -122,6 +147,8 @@ export class TensorFlowService {
       console.error('❌ Error training model:', error);
       // Don't throw error, just log it and continue
       console.log('⚠️ Continuing without trained model...');
+    } finally {
+      this.isTraining = false;
     }
   }
 
@@ -326,8 +353,21 @@ export class TensorFlowService {
 
   /**
    * Create a processed image with color-coded classifications
+   * This method works both in browser and Node.js environments
    */
   private createProcessedImage(imageData: ImageData, classificationMap: number[][]): string {
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      return this.createProcessedImageBrowser(imageData, classificationMap);
+    } else {
+      return this.createProcessedImageNode(imageData, classificationMap);
+    }
+  }
+
+  /**
+   * Create processed image in browser environment
+   */
+  private createProcessedImageBrowser(imageData: ImageData, classificationMap: number[][]): string {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
@@ -363,6 +403,54 @@ export class TensorFlowService {
     
     ctx.putImageData(processedData, 0, 0);
     return canvas.toDataURL('image/png');
+  }
+
+  /**
+   * Create processed image in Node.js environment
+   */
+  private createProcessedImageNode(imageData: ImageData, classificationMap: number[][]): string {
+    try {
+      // Import canvas dynamically for Node.js
+      const { createCanvas } = require('canvas');
+      
+      const canvas = createCanvas(imageData.width, imageData.height);
+      const ctx = canvas.getContext('2d');
+      
+      // Create image data for the processed image
+      const processedImageData = ctx.createImageData(imageData.width, imageData.height);
+      
+      // Apply classification colors
+      for (let y = 0; y < imageData.height; y++) {
+        for (let x = 0; x < imageData.width; x++) {
+          const pixelIndex = (y * imageData.width + x) * 4;
+          const classification = classificationMap[y]?.[x] || 0;
+          
+          if (classification === 1) {
+            // Light area - green
+            processedImageData.data[pixelIndex] = 0;     // R
+            processedImageData.data[pixelIndex + 1] = 255; // G
+            processedImageData.data[pixelIndex + 2] = 0;   // B
+            processedImageData.data[pixelIndex + 3] = 255; // A
+          } else {
+            // Shadow area - blue
+            processedImageData.data[pixelIndex] = 0;     // R
+            processedImageData.data[pixelIndex + 1] = 0;   // G
+            processedImageData.data[pixelIndex + 2] = 255; // B
+            processedImageData.data[pixelIndex + 3] = 255; // A
+          }
+        }
+      }
+      
+      // Put the processed image data on canvas
+      ctx.putImageData(processedImageData, 0, 0);
+      
+      // Convert to base64
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      console.error('❌ Error creating processed image in Node.js:', error);
+      // Return a simple placeholder if canvas fails
+      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    }
   }
 
   /**

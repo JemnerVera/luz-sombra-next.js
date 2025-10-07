@@ -1,44 +1,36 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useFieldData } from '../hooks/useFieldData';
 import { useTensorFlow } from '../hooks/useTensorFlow';
-import { apiService } from '../services/api';
 import { ProcessingResult } from '../types';
 import { formatFileSize } from '../utils/helpers';
-import { Upload, Eye } from 'lucide-react';
+import { Upload, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ModelTestFormProps {
   onNotification: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
-  const { fieldData, loading: fieldLoading } = useFieldData();
   const { isModelReady, isProcessing: tfProcessing, processImage } = useTensorFlow();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState({
-    empresa: '',
-    fundo: '',
-  });
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
       setResult(null);
+      // Create URL for original image
+      const url = URL.createObjectURL(file);
+      setOriginalImageUrl(url);
     }
   };
 
   const handleTestModel = async () => {
     if (!selectedFile) {
       onNotification('Por favor selecciona una imagen', 'warning');
-      return;
-    }
-
-    if (!formData.empresa || !formData.fundo) {
-      onNotification('Por favor completa todos los campos', 'warning');
       return;
     }
 
@@ -58,16 +50,16 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
       const result: ProcessingResult = {
         success: true,
         fileName: selectedFile.name,
-        empresa: formData.empresa,
-        fundo: formData.fundo,
+        empresa: 'Prueba del Modelo',
+        fundo: 'TensorFlow.js',
         porcentaje_luz: tfResult.lightPercentage,
         porcentaje_sombra: tfResult.shadowPercentage,
-        processed_image_url: tfResult.processedImageData,
+        processed_image: tfResult.processedImageData,
         hilera: '',
         numero_planta: '',
-        latitud: null,
-        longitud: null,
-        error: null
+        latitud: undefined,
+        longitud: undefined,
+        error: undefined
       };
       
       setResult(result);
@@ -82,8 +74,11 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
 
   const handleClear = () => {
     setSelectedFile(null);
-    setFormData({ empresa: '', fundo: '' });
     setResult(null);
+    if (originalImageUrl) {
+      URL.revokeObjectURL(originalImageUrl);
+      setOriginalImageUrl(null);
+    }
     onNotification('Formulario limpiado', 'info');
   };
 
@@ -92,50 +87,12 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
       {/* Form Fields */}
       <div className="bg-white dark:bg-dark-900 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-dark-700 animate-slide-up">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 font-display">
-          🧪 Probar Modelo
+          🧪 Probar Modelo TensorFlow.js
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Empresa */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
-              Empresa
-            </label>
-            <select
-              value={formData.empresa}
-              onChange={(e) => setFormData(prev => ({ ...prev, empresa: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-dark-800 dark:text-white"
-              disabled={fieldLoading}
-            >
-              <option value="">Seleccionar empresa</option>
-              {fieldData?.empresa?.map((empresa) => (
-                <option key={empresa} value={empresa}>
-                  {empresa}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Fundo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-300 mb-2">
-              Fundo
-            </label>
-            <select
-              value={formData.fundo}
-              onChange={(e) => setFormData(prev => ({ ...prev, fundo: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-dark-800 dark:text-white"
-              disabled={fieldLoading}
-            >
-              <option value="">Seleccionar fundo</option>
-              {fieldData?.fundo?.map((fundo) => (
-                <option key={fundo} value={fundo}>
-                  {fundo}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <p className="text-sm text-gray-600 dark:text-dark-400 mb-6">
+          Selecciona una imagen agrícola para probar el modelo de clasificación de píxeles (luz/sombra).
+        </p>
 
         {/* File Upload */}
         <div className="border-2 border-dashed border-gray-300 dark:border-dark-600 rounded-lg p-6 text-center">
@@ -182,7 +139,7 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
       <div className="flex space-x-4">
         <button
           onClick={handleTestModel}
-          disabled={processing || tfProcessing || !selectedFile || !formData.empresa || !formData.fundo || !isModelReady}
+          disabled={processing || tfProcessing || !selectedFile || !isModelReady}
           className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
         >
           {processing || tfProcessing ? 'Probando Modelo...' : 
@@ -211,10 +168,10 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
                 <strong>Archivo:</strong> {result.fileName}
               </p>
               <p className="text-sm text-gray-600 dark:text-dark-400">
-                <strong>Empresa:</strong> {formData.empresa}
+                <strong>Tipo:</strong> {result.empresa || 'Prueba del Modelo'}
               </p>
               <p className="text-sm text-gray-600 dark:text-dark-400">
-                <strong>Fundo:</strong> {formData.fundo}
+                <strong>Modelo:</strong> {result.fundo}
               </p>
             </div>
             <div>
@@ -237,20 +194,147 @@ const ModelTestForm: React.FC<ModelTestFormProps> = ({ onNotification }) => {
               </div>
             </div>
           </div>
-          {result.processed_image && (
-            <div className="mt-4">
-              <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-                Imagen Procesada
+          {result.processed_image && originalImageUrl && (
+            <div className="mt-6">
+              <h3 className="font-medium text-gray-900 dark:text-white mb-4">
+                Comparación: Original vs Procesada
               </h3>
-              <img
-                src={result.processed_image}
-                alt="Processed result"
-                className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-dark-600"
-              />
+              
+              {/* Image Comparison Slider */}
+              <div className="relative mb-6">
+                <ImageComparisonSlider
+                  originalImage={originalImageUrl}
+                  processedImage={result.processed_image}
+                />
+              </div>
+
+              {/* Color Legend */}
+              <div className="bg-gray-50 dark:bg-dark-800 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">
+                  🎨 Leyenda de Colores
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-gray-500 rounded border"></div>
+                    <span className="text-sm text-gray-700 dark:text-dark-300">Suelo Sombra</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-yellow-400 rounded border"></div>
+                    <span className="text-sm text-gray-700 dark:text-dark-300">Suelo Luz</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-green-600 rounded border"></div>
+                    <span className="text-sm text-gray-700 dark:text-dark-300">Malla Sombra</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-green-400 rounded border"></div>
+                    <span className="text-sm text-gray-700 dark:text-dark-300">Malla Luz</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+};
+
+// Image Comparison Slider Component
+interface ImageComparisonSliderProps {
+  originalImage: string;
+  processedImage: string;
+}
+
+const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({ 
+  originalImage, 
+  processedImage 
+}) => {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleMouseDown = () => {
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = (x / rect.width) * 100;
+    setSliderPosition(Math.max(0, Math.min(100, percentage)));
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const percentage = (x / rect.width) * 100;
+    setSliderPosition(Math.max(0, Math.min(100, percentage)));
+  };
+
+  return (
+    <div 
+      className="relative w-full max-w-4xl mx-auto cursor-col-resize select-none"
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleMouseUp}
+    >
+      {/* Container for both images */}
+      <div className="relative rounded-lg border border-gray-200 dark:border-dark-600 overflow-hidden">
+        {/* Original Image (Background) - Full size */}
+        <img
+          src={originalImage}
+          alt="Original"
+          className="w-full h-auto block"
+          draggable={false}
+        />
+        
+        {/* Processed Image (Overlay) - Full size with clip */}
+        <div 
+          className="absolute top-0 left-0 w-full h-full"
+          style={{ 
+            clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`
+          }}
+        >
+          <img
+            src={processedImage}
+            alt="Processed"
+            className="w-full h-auto block"
+            draggable={false}
+          />
+        </div>
+        
+        {/* Slider Line */}
+        <div 
+          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg z-10"
+          style={{ left: `${sliderPosition}%` }}
+        >
+          {/* Slider Handle */}
+          <div 
+            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg border-2 border-gray-300 flex items-center justify-center cursor-col-resize"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleMouseDown}
+          >
+            <ChevronLeft className="w-3 h-3 text-gray-600" />
+            <ChevronRight className="w-3 h-3 text-gray-600 -ml-1" />
+          </div>
+        </div>
+      </div>
+      
+      {/* Labels */}
+      <div className="flex justify-between mt-2 text-sm text-gray-600 dark:text-dark-400">
+        <span>Original</span>
+        <span>Procesada</span>
+      </div>
     </div>
   );
 };

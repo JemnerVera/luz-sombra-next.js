@@ -1,5 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { tensorFlowService, PixelClassificationResult } from '../services/tensorflowService';
+
+// Global state to prevent multiple initializations
+let globalInitializationPromise: Promise<void> | null = null;
+let globalIsInitialized = false;
 
 export interface UseTensorFlowReturn {
   isInitialized: boolean;
@@ -12,34 +16,65 @@ export interface UseTensorFlowReturn {
 }
 
 const useTensorFlowHook = (): UseTensorFlowReturn => {
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(globalIsInitialized);
   const [isModelReady, setIsModelReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initializationRef = useRef<boolean>(false);
 
   const initialize = useCallback(async () => {
+    // If already initialized globally, just update local state
+    if (globalIsInitialized) {
+      setIsInitialized(true);
+      setIsModelReady(true);
+      return;
+    }
+
+    // If already initializing, wait for the existing promise
+    if (globalInitializationPromise) {
+      try {
+        await globalInitializationPromise;
+        setIsInitialized(true);
+        setIsModelReady(true);
+        return;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMessage);
+        return;
+      }
+    }
+
+    // Start new initialization
     try {
       setError(null);
       console.log('🚀 Initializing TensorFlow.js...');
       
-      // Initialize TensorFlow.js
-      await tensorFlowService.initialize();
+      // Create global initialization promise
+      globalInitializationPromise = (async () => {
+        // Initialize TensorFlow.js
+        await tensorFlowService.initialize();
+        
+        // Create and train model
+        console.log('🧠 Creating model...');
+        await tensorFlowService.createModel();
+        
+        console.log('🎓 Training model...');
+        await tensorFlowService.trainModel();
+        
+        globalIsInitialized = true;
+        console.log('✅ TensorFlow.js ready!');
+      })();
+
+      await globalInitializationPromise;
+      
       setIsInitialized(true);
-      
-      // Create and train model
-      console.log('🧠 Creating model...');
-      await tensorFlowService.createModel();
-      
-      console.log('🎓 Training model...');
-      await tensorFlowService.trainModel();
-      
       setIsModelReady(true);
-      console.log('✅ TensorFlow.js ready!');
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
       console.error('❌ TensorFlow initialization failed:', errorMessage);
+      globalInitializationPromise = null; // Reset on error
     }
   }, []);
 
@@ -117,7 +152,8 @@ const useTensorFlowHook = (): UseTensorFlowReturn => {
     let mounted = true;
     
     const init = async () => {
-      if (!isInitialized && mounted) {
+      if (!initializationRef.current && mounted) {
+        initializationRef.current = true;
         try {
           await initialize();
         } catch (error) {
@@ -131,9 +167,10 @@ const useTensorFlowHook = (): UseTensorFlowReturn => {
     // Cleanup on unmount
     return () => {
       mounted = false;
-      dispose();
+      // Don't dispose globally, just reset local ref
+      initializationRef.current = false;
     };
-  }, []); // Empty dependency array to run only once
+  }, [initialize]); // Include initialize in dependencies
 
   return {
     isInitialized,

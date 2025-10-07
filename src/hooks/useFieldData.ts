@@ -2,13 +2,38 @@ import { useState, useEffect, useCallback } from 'react';
 import { FieldData } from '../types';
 import { apiService } from '../services/api';
 
+// Global cache for field data
+let globalFieldDataCache: { data: FieldData | null; timestamp: number; loading: boolean } = {
+  data: null,
+  timestamp: 0,
+  loading: false
+};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export const useFieldData = () => {
-  const [fieldData, setFieldData] = useState<FieldData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [fieldData, setFieldData] = useState<FieldData | null>(globalFieldDataCache.data);
+  const [loading, setLoading] = useState(globalFieldDataCache.loading);
   const [error, setError] = useState<string | null>(null);
 
   const loadFieldData = useCallback(async () => {
+    // Check if we already have valid cached data
+    if (globalFieldDataCache.data && (Date.now() - globalFieldDataCache.timestamp) < CACHE_DURATION) {
+      console.log('📊 Using cached field data from global cache');
+      setFieldData(globalFieldDataCache.data);
+      setLoading(false);
+      return;
+    }
+
+    // Check if another component is already loading
+    if (globalFieldDataCache.loading) {
+      console.log('📊 Field data already loading, waiting...');
+      setLoading(true);
+      return;
+    }
+
     try {
+      globalFieldDataCache.loading = true;
       setLoading(true);
       setError(null);
       console.log('📊 Loading field data...');
@@ -23,10 +48,18 @@ export const useFieldData = () => {
         hierarchical: data.hierarchical ? Object.keys(data.hierarchical) : 'No hierarchical data'
       });
       
+      // Update global cache
+      globalFieldDataCache = {
+        data,
+        timestamp: Date.now(),
+        loading: false
+      };
+      
       setFieldData(data);
     } catch (err) {
       console.error('❌ Error loading field data:', err);
       setError(err instanceof Error ? err.message : 'Error cargando datos de campo');
+      globalFieldDataCache.loading = false;
     } finally {
       setLoading(false);
     }
@@ -35,6 +68,27 @@ export const useFieldData = () => {
   useEffect(() => {
     loadFieldData();
   }, [loadFieldData]);
+
+  // Sync with global cache when it changes
+  useEffect(() => {
+    const checkCache = () => {
+      if (globalFieldDataCache.data && globalFieldDataCache.data !== fieldData) {
+        setFieldData(globalFieldDataCache.data);
+        setLoading(false);
+      }
+      if (globalFieldDataCache.loading !== loading) {
+        setLoading(globalFieldDataCache.loading);
+      }
+    };
+
+    // Check immediately
+    checkCache();
+
+    // Set up interval to check for cache updates
+    const interval = setInterval(checkCache, 100);
+
+    return () => clearInterval(interval);
+  }, [fieldData, loading]);
 
   const getFundosByEmpresa = (empresa: string): string[] => {
     if (!fieldData?.hierarchical || !fieldData.hierarchical[empresa]) {
@@ -48,12 +102,10 @@ export const useFieldData = () => {
     if (!fieldData?.hierarchical || 
         !fieldData.hierarchical[empresa] || 
         !fieldData.hierarchical[empresa][fundo]) {
-      console.log('🔍 No hierarchical data for empresa/fundo:', empresa, fundo);
       return [];
     }
     
     const sectores = Object.keys(fieldData.hierarchical[empresa][fundo]);
-    console.log('🔍 Sectores for empresa/fundo', empresa, fundo, ':', sectores);
     return sectores;
   };
 
@@ -62,12 +114,10 @@ export const useFieldData = () => {
         !fieldData.hierarchical[empresa] || 
         !fieldData.hierarchical[empresa][fundo] || 
         !fieldData.hierarchical[empresa][fundo][sector]) {
-      console.log('🔍 No hierarchical data for empresa/fundo/sector:', empresa, fundo, sector);
       return [];
     }
     
     const lotes = fieldData.hierarchical[empresa][fundo][sector];
-    console.log('🔍 Lotes for empresa/fundo/sector', empresa, fundo, sector, ':', lotes);
     return lotes;
   };
 

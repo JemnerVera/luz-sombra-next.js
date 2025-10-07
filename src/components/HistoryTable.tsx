@@ -57,7 +57,7 @@ const HistoryTable: React.FC<HistoryTableProps> = ({ onNotification }) => {
     }
 
     try {
-      exportToCSV(history, 'historial_luz_sombra.csv');
+      exportToCSV(history as any, 'historial_luz_sombra.csv');
       onNotification('✅ Historial exportado exitosamente', 'success');
     } catch (error) {
       console.error('Error exporting CSV:', error);
@@ -99,19 +99,26 @@ const HistoryTable: React.FC<HistoryTableProps> = ({ onNotification }) => {
   if (loading) {
     return (
       <div className="space-y-6">
-        {/* Header Skeleton */}
-        <div className="bg-white dark:bg-dark-800 p-6 rounded-lg shadow animate-pulse">
+        {/* Loading Header */}
+        <div className="bg-white dark:bg-dark-800 p-6 rounded-lg shadow">
           <div className="flex justify-between items-center mb-4">
-            <div className="h-6 bg-gray-200 rounded w-48"></div>
-            <div className="flex space-x-3">
-              <div className="h-8 bg-gray-200 rounded w-24"></div>
-              <div className="h-8 bg-gray-200 rounded w-32"></div>
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                📊 Cargando Historial...
+              </h2>
+            </div>
+            <div className="text-sm text-gray-500 dark:text-dark-400">
+              Esto puede tomar unos segundos
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="h-10 bg-gray-200 rounded"></div>
-            <div className="h-10 bg-gray-200 rounded"></div>
-            <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                Conectando con Google Sheets y cargando datos...
+              </span>
+            </div>
           </div>
         </div>
         

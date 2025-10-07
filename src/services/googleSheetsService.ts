@@ -41,6 +41,9 @@ class GoogleSheetsService {
   private auth: unknown = null;
   private sheets: ReturnType<typeof google.sheets> | null = null;
   private config: GoogleSheetsConfig | null = null;
+  private historialCache: { data: ProcessingRecord[]; timestamp: number } | null = null;
+  private fieldDataCache: { data: FieldData; timestamp: number } | null = null;
+  private cacheTimeout = 300000; // 5 minutes cache (increased from 60 seconds)
 
   constructor() {
     this.loadConfig();
@@ -152,6 +155,12 @@ class GoogleSheetsService {
 
   async getFieldData(): Promise<FieldData> {
     try {
+      // Check cache first
+      if (this.fieldDataCache && (Date.now() - this.fieldDataCache.timestamp) < this.cacheTimeout) {
+        console.log('📊 Using cached field data');
+        return this.fieldDataCache.data;
+      }
+
       if (!this.config || this.config.spreadsheetId === 'demo') {
         return this.getDemoFieldData();
       }
@@ -168,10 +177,17 @@ class GoogleSheetsService {
       if (!this.sheets) {
         throw new Error('Sheets service not initialized');
       }
+      
+      console.log('📊 Fetching field data from Google Sheets...');
+      const startTime = Date.now();
+      
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.config.spreadsheetId,
         range: range,
       });
+      
+      const fetchTime = Date.now() - startTime;
+      console.log(`📊 Field data fetch completed in ${fetchTime}ms`);
 
       const values = response.data.values || [];
       if (values.length <= 1) {
@@ -206,7 +222,15 @@ class GoogleSheetsService {
         }
       }
 
-      return this.processFieldData(rawData);
+      const processedData = this.processFieldData(rawData);
+      
+      // Cache the result
+      this.fieldDataCache = {
+        data: processedData,
+        timestamp: Date.now()
+      };
+      
+      return processedData;
     } catch (error) {
       console.error('❌ Error obteniendo datos de campo:', error);
       return this.getDemoFieldData();
@@ -215,6 +239,12 @@ class GoogleSheetsService {
 
   async getHistorial(): Promise<{ success: boolean; procesamientos: ProcessingRecord[] }> {
     try {
+      // Check cache first
+      if (this.historialCache && (Date.now() - this.historialCache.timestamp) < this.cacheTimeout) {
+        console.log('📊 Using cached history data');
+        return { success: true, procesamientos: this.historialCache.data };
+      }
+
       if (!this.config || this.config.spreadsheetId === 'demo') {
         return this.getDemoHistorial();
       }
@@ -226,15 +256,23 @@ class GoogleSheetsService {
         }
       }
 
-      // Obtener historial de la hoja principal
-      const range = `${this.config.sheetName}!A2:S1000`;
+      // Obtener historial de la hoja principal (últimas 500 filas, solo columnas necesarias)
+      // Columnas: A=ID, B=Fecha, C=Hora, D=Imagen, E=Nombre Archivo, F=Empresa, G=Fundo, H=Sector, I=Lote, J=Hilera, K=Planta, L=Lat, M=Lng, N=Luz%, O=Sombra%, P=Dispositivo, Q=Software, R=Dirección, S=Timestamp, T=ArchivoID
+      const range = `${this.config.sheetName}!A2:T500`;
       if (!this.sheets) {
         throw new Error('Sheets service not initialized');
       }
+      
+      console.log('📊 Fetching history data from Google Sheets...');
+      const startTime = Date.now();
+      
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.config.spreadsheetId,
         range: range,
       });
+      
+      const fetchTime = Date.now() - startTime;
+      console.log(`📊 Google Sheets fetch completed in ${fetchTime}ms`);
 
       const values = response.data.values || [];
       const historial: ProcessingRecord[] = [];
@@ -266,6 +304,12 @@ class GoogleSheetsService {
         }
       }
 
+      // Cache the result
+      this.historialCache = {
+        data: historial,
+        timestamp: Date.now()
+      };
+
       return {
         success: true,
         procesamientos: historial
@@ -274,6 +318,98 @@ class GoogleSheetsService {
       console.error('❌ Error obteniendo historial:', error);
       return this.getDemoHistorial();
     }
+  }
+
+  async saveProcessingResult(result: {
+    fileName: string;
+    image_name: string;
+    hilera: string;
+    numero_planta: string;
+    porcentaje_luz: number;
+    porcentaje_sombra: number;
+    fundo: string;
+    sector: string;
+    lote: string;
+    empresa: string;
+    latitud: number | null;
+    longitud: number | null;
+    processed_image: string;
+    timestamp: string;
+    exifDateTime?: { date: string; time: string } | null;
+  }): Promise<void> {
+    try {
+      if (!this.config || this.config.spreadsheetId === 'demo') {
+        console.log('📝 Demo mode: Would save processing result to Google Sheets');
+        return;
+      }
+
+      if (!this.sheets) {
+        const authenticated = await this.authenticate();
+        if (!authenticated) {
+          throw new Error('Could not authenticate with Google Sheets');
+        }
+      }
+
+      if (!this.sheets) {
+        throw new Error('Sheets service not initialized');
+      }
+
+      // Generate unique ID
+      const id = `IMG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Get next sequential ID
+      const nextId = await this.getNextSequentialId();
+      
+      // Use EXIF date/time if available, otherwise use current timestamp
+      const now = new Date();
+      const fecha = result.exifDateTime?.date || now.toLocaleDateString('es-ES');
+      const hora = result.exifDateTime?.time || now.toLocaleTimeString('es-ES');
+      const timestamp = now.toISOString();
+
+           // Prepare row data
+           const rowData = [
+             nextId, // ID - sequential number
+             fecha,
+             hora,
+             result.image_name,
+             result.fileName,
+             result.empresa,
+             result.fundo,
+             result.sector,
+             result.lote,
+             result.hilera,
+             result.numero_planta,
+             result.latitud?.toString() || '',
+             result.longitud?.toString() || '',
+             parseFloat(result.porcentaje_luz.toFixed(2)), // Convert to number
+             parseFloat(result.porcentaje_sombra.toFixed(2)), // Convert to number
+             'Web App',
+             'Next.js + TensorFlow.js',
+             '', // direccion
+             timestamp,
+             id // ArchivoID - our unique identifier
+           ];
+
+      // Append to Google Sheets
+      const range = `${this.config.sheetName}!A:T`;
+      await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.config.spreadsheetId,
+        range: range,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [rowData]
+        }
+      });
+
+           console.log('✅ Processing result saved to Google Sheets:', id);
+           
+           // Clear cache to force refresh on next load
+           this.historialCache = null;
+         } catch (error) {
+           console.error('❌ Error saving processing result to Google Sheets:', error);
+           throw error;
+         }
   }
 
   private processFieldData(rawData: Array<{
@@ -408,6 +544,67 @@ class GoogleSheetsService {
         }
       ]
     };
+  }
+
+  // Get next sequential ID by reading the last row
+  private async getNextSequentialId(): Promise<number> {
+    try {
+      if (!this.config || this.config.spreadsheetId === 'demo') {
+        return 999; // Demo ID
+      }
+
+      if (!this.sheets) {
+        const authenticated = await this.authenticate();
+        if (!authenticated) {
+          return 999; // Fallback ID
+        }
+      }
+
+      if (!this.sheets) {
+        return 999; // Fallback ID
+      }
+
+      // Get the last few rows to find the highest ID
+      const range = `${this.config.sheetName}!A:A`; // Get all IDs in column A
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.config.spreadsheetId,
+        range: range,
+      });
+
+      const values = response.data.values || [];
+      let maxId = 0;
+
+      console.log(`🔍 Found ${values.length} rows in Google Sheets`);
+
+      // Find the highest ID in all rows (skip header row)
+      for (let i = 1; i < values.length; i++) {
+        const row = values[i];
+        if (row && row[0]) {
+          // Remove any quotes or extra characters
+          const idStr = row[0].toString().replace(/['"]/g, '').trim();
+          console.log(`🔍 Row ${i}: ID = "${idStr}"`);
+          if (!isNaN(Number(idStr)) && idStr !== '') {
+            const id = Number(idStr);
+            if (id > maxId) {
+              maxId = id;
+              console.log(`🔍 New max ID found: ${maxId}`);
+            }
+          }
+        }
+      }
+
+      // If no valid ID found, start from 100
+      if (maxId === 0) {
+        maxId = 100;
+      }
+
+      const nextId = maxId + 1;
+      console.log(`🔢 Next sequential ID: ${nextId}`);
+      return nextId;
+    } catch (error) {
+      console.error('❌ Error getting next sequential ID:', error);
+      return 999; // Fallback ID
+    }
   }
 }
 

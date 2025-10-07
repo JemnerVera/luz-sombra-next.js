@@ -94,4 +94,90 @@ export const formatCoordinates = (coordinates: GpsCoordinates): string => {
   return `${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`;
 };
 
+export interface DateTimeInfo {
+  date: string;
+  time: string;
+}
+
+// Extract date and time from EXIF data
+export const extractDateTimeFromImage = (file: File): Promise<DateTimeInfo | null> => {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || !window.EXIF) {
+      resolve(null);
+      return;
+    }
+
+    const cacheKey = `${file.name}_${file.size}_${file.lastModified}_datetime`;
+    if (typeof window !== 'undefined' && (window as unknown as { dateTimeCache?: Map<string, unknown> }).dateTimeCache) {
+      const cached = (window as unknown as { dateTimeCache: Map<string, unknown> }).dateTimeCache.get(cacheKey);
+      if (cached !== undefined) {
+        resolve(cached as DateTimeInfo | null);
+        return;
+      }
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window.EXIF.getData as any)(img, () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dateTime = (window.EXIF.getTag as any)(img, 'DateTime') as string | undefined;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dateTimeOriginal = (window.EXIF.getTag as any)(img, 'DateTimeOriginal') as string | undefined;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dateTimeDigitized = (window.EXIF.getTag as any)(img, 'DateTimeDigitized') as string | undefined;
+          
+          // Try different EXIF date fields
+          const dateTimeValue = dateTimeOriginal || dateTimeDigitized || dateTime;
+          
+          if (dateTimeValue && typeof dateTimeValue === 'string') {
+            // EXIF date format: "YYYY:MM:DD HH:MM:SS"
+            const [datePart, timePart] = dateTimeValue.split(' ');
+            if (datePart && timePart) {
+              // Convert to more readable format
+              const [year, month, day] = datePart.split(':');
+              const [hour, minute, second] = timePart.split(':');
+              
+              const date = `${day}/${month}/${year}`;
+              const time = `${hour}:${minute}:${second}`;
+              
+              const result: DateTimeInfo = { date, time };
+              
+              // Cache the result
+              if (typeof window !== 'undefined' && (window as unknown as { dateTimeCache?: Map<string, unknown> }).dateTimeCache) {
+                (window as unknown as { dateTimeCache: Map<string, unknown> }).dateTimeCache.set(cacheKey, result);
+              }
+              
+              console.log(`📅 Date/Time found for ${file.name}: ${date} ${time}`);
+              resolve(result);
+            } else {
+              console.log(`❌ Invalid date format for ${file.name}: ${dateTimeValue}`);
+              resolve(null);
+            }
+          } else {
+            console.log(`❌ No date/time data found for ${file.name}`);
+            resolve(null);
+          }
+        });
+      } catch (error) {
+        console.error(`❌ Error processing EXIF date for ${file.name}:`, error);
+        resolve(null);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    };
+    
+    img.onerror = () => {
+      console.error(`❌ Error loading image for date extraction: ${file.name}`);
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    
+    img.src = url;
+  });
+};
+
 // EXIF library is loaded dynamically in App.tsx

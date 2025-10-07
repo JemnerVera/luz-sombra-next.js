@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { ImageFile } from '../types';
-import { extractGpsFromImage, GpsCoordinates } from '../utils/exif';
+import { extractGpsFromImage, GpsCoordinates, extractDateTimeFromImage, DateTimeInfo } from '../utils/exif';
 import { createImagePreview, validateImageFile } from '../utils/helpers';
 import { parseFilename } from '../utils/filenameParser';
 
@@ -34,6 +34,7 @@ export const useImageUpload = () => {
           file,
           preview,
           gpsStatus: 'extracting',
+          dateStatus: 'extracting',
           hilera: parsedFilename.hilera || '',
           numero_planta: parsedFilename.planta || '',
         };
@@ -44,8 +45,9 @@ export const useImageUpload = () => {
       // Add all images first
       setImages(prev => [...prev, ...newImages]);
       
-      // Then extract GPS for each image
+      // Then extract GPS and date for each image
       for (const imageFile of newImages) {
+        // Extract GPS
         extractGpsFromImage(imageFile.file)
           .then((coordinates: GpsCoordinates | null) => {
             console.log(`🔍 GPS extraction for ${imageFile.file.name}:`, coordinates ? 'Found' : 'Not found');
@@ -64,6 +66,29 @@ export const useImageUpload = () => {
             setImages(prev => prev.map(img => 
               img.file === imageFile.file 
                 ? { ...img, gpsStatus: 'not-found', coordinates: undefined }
+                : img
+            ));
+          });
+
+        // Extract date/time
+        extractDateTimeFromImage(imageFile.file)
+          .then((dateTime: DateTimeInfo | null) => {
+            console.log(`📅 Date extraction for ${imageFile.file.name}:`, dateTime ? 'Found' : 'Not found');
+            setImages(prev => prev.map(img => 
+              img.file === imageFile.file 
+                ? {
+                    ...img,
+                    dateStatus: dateTime ? 'found' : 'not-found',
+                    dateTime: dateTime || undefined
+                  }
+                : img
+            ));
+          })
+          .catch((error) => {
+            console.error(`❌ Error extracting date for ${imageFile.file.name}:`, error);
+            setImages(prev => prev.map(img => 
+              img.file === imageFile.file 
+                ? { ...img, dateStatus: 'not-found', dateTime: undefined }
                 : img
             ));
           });

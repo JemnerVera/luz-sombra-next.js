@@ -19,9 +19,14 @@ dist/
 
 # Sensitive files
 token.json
+credentials.json
 *.pem
 *.key
 *.crt
+
+# Google Sheets credentials
+google-credentials.json
+google-token.json
 
 # IDE
 .vscode/
