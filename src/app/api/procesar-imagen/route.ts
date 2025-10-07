@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
     const imageDataResult = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
     // Process with TensorFlow.js
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tfResult = await serverTensorFlowService.classifyImagePixels(imageDataResult as any);
 
     // Extract data from filename (if available)

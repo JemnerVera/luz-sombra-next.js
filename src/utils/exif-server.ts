@@ -22,9 +22,12 @@ export const extractDateTimeFromImageServer = async (file: File): Promise<DateTi
     }
 
     // Try different EXIF date fields
-    const dateTime = exifData['0th'][piexif.ImageIFD.DateTime];
-    const dateTimeOriginal = exifData['Exif'][piexif.ExifIFD.DateTimeOriginal];
-    const dateTimeDigitized = exifData['Exif'][piexif.ExifIFD.DateTimeDigitized];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dateTime = (exifData as any)['0th']?.[piexif.ImageIFD.DateTime];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dateTimeOriginal = (exifData as any)['Exif']?.[piexif.ExifIFD.DateTimeOriginal];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dateTimeDigitized = (exifData as any)['Exif']?.[piexif.ExifIFD.DateTimeDigitized];
     
     const dateTimeValue = dateTimeOriginal || dateTimeDigitized || dateTime;
     

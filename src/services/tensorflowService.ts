@@ -411,6 +411,7 @@ export class TensorFlowService {
   private createProcessedImageNode(imageData: ImageData, classificationMap: number[][]): string {
     try {
       // Import canvas dynamically for Node.js
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { createCanvas } = require('canvas');
       
       const canvas = createCanvas(imageData.width, imageData.height);

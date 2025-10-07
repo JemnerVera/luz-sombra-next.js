@@ -57,6 +57,7 @@ const HistoryTable: React.FC<HistoryTableProps> = ({ onNotification }) => {
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       exportToCSV(history as any, 'historial_luz_sombra.csv');
       onNotification('✅ Historial exportado exitosamente', 'success');
     } catch (error) {
