@@ -75,18 +75,26 @@ export class TensorFlowService {
       tensorflow.disposeVariables();
 
       // Create a simple sequential model
-      // Create ultra-simple model for Vercel (maximum efficiency)
+      // Create multi-feature model for better precision (efficient for Vercel)
       this.model = tensorflow.sequential({
         layers: [
-          // Input layer - ultra-simple
+          // Input layer - multiple features
           tensorflow.layers.dense({
-            inputShape: [3], // RGB values
-            units: 8, // Ultra-reduced for speed
+            inputShape: [6], // RGB + brightness + contrast + edge_strength
+            units: 16, // Increased for better learning
             activation: 'relu',
             name: 'input'
           }),
           
-          // Output layer - direct connection
+          // Hidden layer for better precision
+          tensorflow.layers.dropout({ rate: 0.1 }), // Light dropout
+          tensorflow.layers.dense({
+            units: 8,
+            activation: 'relu',
+            name: 'hidden'
+          }),
+          
+          // Output layer
           tensorflow.layers.dense({
             units: 2, // 2 classes: light (0) and shadow (1)
             activation: 'softmax',
@@ -125,39 +133,45 @@ export class TensorFlowService {
 
       console.log('🚀 Training hybrid model for Vercel...');
 
-      // Generate better training data with more realistic patterns
+      // Generate rich training data with multiple features
       const features = [];
       const labels = [];
 
-      // Generate 100 samples with more realistic light/shadow patterns
-      for (let i = 0; i < 100; i++) {
-        let r, g, b;
+      // Generate 200 samples with realistic light/shadow patterns
+      for (let i = 0; i < 200; i++) {
+        let r, g, b, brightness, contrast, edgeStrength;
         
-        if (i < 50) {
-          // Light samples (bright colors)
-          r = 0.6 + Math.random() * 0.4; // 0.6-1.0
-          g = 0.6 + Math.random() * 0.4;
-          b = 0.6 + Math.random() * 0.4;
+        if (i < 100) {
+          // Light samples (bright, high contrast, low edge strength)
+          r = 0.5 + Math.random() * 0.5; // 0.5-1.0
+          g = 0.5 + Math.random() * 0.5;
+          b = 0.5 + Math.random() * 0.5;
+          brightness = 0.6 + Math.random() * 0.4; // 0.6-1.0
+          contrast = 0.3 + Math.random() * 0.4; // 0.3-0.7
+          edgeStrength = Math.random() * 0.3; // 0.0-0.3 (smooth areas)
           labels.push([1, 0]); // Light
         } else {
-          // Shadow samples (darker colors)
-          r = Math.random() * 0.5; // 0.0-0.5
-          g = Math.random() * 0.5;
-          b = Math.random() * 0.5;
+          // Shadow samples (dark, low contrast, high edge strength)
+          r = Math.random() * 0.4; // 0.0-0.4
+          g = Math.random() * 0.4;
+          b = Math.random() * 0.4;
+          brightness = Math.random() * 0.4; // 0.0-0.4
+          contrast = Math.random() * 0.3; // 0.0-0.3
+          edgeStrength = 0.4 + Math.random() * 0.6; // 0.4-1.0 (edge areas)
           labels.push([0, 1]); // Shadow
         }
         
-        features.push([r, g, b]);
+        features.push([r, g, b, brightness, contrast, edgeStrength]);
       }
 
       const xs = tensorflow.tensor2d(features);
       const ys = tensorflow.tensor2d(labels);
 
-      // Better training: 5 epochs with validation
+      // Enhanced training: 8 epochs with validation
       await this.model.fit(xs, ys, {
-        epochs: 5, // More epochs for better learning
-        batchSize: 25, // Smaller batches
-        validationSplit: 0.2, // Some validation
+        epochs: 8, // More epochs for better learning
+        batchSize: 32, // Optimal batch size
+        validationSplit: 0.2, // Validation for better generalization
         verbose: 0 // No logging
       });
 
@@ -203,28 +217,64 @@ export class TensorFlowService {
       const regions: number[][] = [];
       const regionPositions: { x: number; y: number; width: number; height: number }[] = [];
 
-      // Sample regions from the image
+      // Sample regions from the image with multi-feature analysis
       for (let y = 0; y < height - regionSize; y += regionSize) {
         for (let x = 0; x < width - regionSize; x += regionSize) {
-          // Calculate average color for this region
+          // Calculate multiple features for this region
           let totalR = 0, totalG = 0, totalB = 0;
           let pixelCount = 0;
+          const pixelValues: number[] = [];
 
+          // Collect pixel data
           for (let dy = 0; dy < regionSize; dy++) {
             for (let dx = 0; dx < regionSize; dx++) {
               const pixelIndex = ((y + dy) * width + (x + dx)) * 4;
-              totalR += data[pixelIndex];
-              totalG += data[pixelIndex + 1];
-              totalB += data[pixelIndex + 2];
+              const r = data[pixelIndex];
+              const g = data[pixelIndex + 1];
+              const b = data[pixelIndex + 2];
+              
+              totalR += r;
+              totalG += g;
+              totalB += b;
               pixelCount++;
+              
+              // Store brightness for contrast calculation
+              const brightness = (r + g + b) / 3;
+              pixelValues.push(brightness);
             }
           }
 
+          // Calculate features
           const avgR = (totalR / pixelCount) / 255;
           const avgG = (totalG / pixelCount) / 255;
           const avgB = (totalB / pixelCount) / 255;
+          const brightness = (avgR + avgG + avgB) / 3;
+          
+          // Calculate contrast (standard deviation of brightness)
+          const meanBrightness = pixelValues.reduce((sum, val) => sum + val, 0) / pixelValues.length;
+          const variance = pixelValues.reduce((sum, val) => sum + Math.pow(val - meanBrightness, 2), 0) / pixelValues.length;
+          const contrast = Math.sqrt(variance) / 255; // Normalize
+          
+          // Calculate edge strength (simplified gradient)
+          let edgeStrength = 0;
+          for (let dy = 0; dy < regionSize - 1; dy++) {
+            for (let dx = 0; dx < regionSize - 1; dx++) {
+              const pixelIndex1 = ((y + dy) * width + (x + dx)) * 4;
+              const pixelIndex2 = ((y + dy) * width + (x + dx + 1)) * 4;
+              const pixelIndex3 = ((y + dy + 1) * width + (x + dx)) * 4;
+              
+              const brightness1 = (data[pixelIndex1] + data[pixelIndex1 + 1] + data[pixelIndex1 + 2]) / 3;
+              const brightness2 = (data[pixelIndex2] + data[pixelIndex2 + 1] + data[pixelIndex2 + 2]) / 3;
+              const brightness3 = (data[pixelIndex3] + data[pixelIndex3 + 1] + data[pixelIndex3 + 2]) / 3;
+              
+              const gradientX = Math.abs(brightness2 - brightness1);
+              const gradientY = Math.abs(brightness3 - brightness1);
+              edgeStrength += Math.sqrt(gradientX * gradientX + gradientY * gradientY);
+            }
+          }
+          edgeStrength = (edgeStrength / ((regionSize - 1) * (regionSize - 1))) / 255; // Normalize
 
-          regions.push([avgR, avgG, avgB]);
+          regions.push([avgR, avgG, avgB, brightness, contrast, edgeStrength]);
           regionPositions.push({ x, y, width: regionSize, height: regionSize });
         }
       }
