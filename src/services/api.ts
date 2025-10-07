@@ -6,7 +6,7 @@ const API_BASE_URL = config.apiUrl;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 120000, // 2 minutes timeout for image processing
+  timeout: 60000, // 1 minute timeout for image processing (reduced for Vercel)
 });
 
 // Request interceptor

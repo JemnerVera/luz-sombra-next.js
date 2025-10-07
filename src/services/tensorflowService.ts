@@ -70,32 +70,26 @@ export class TensorFlowService {
       tensorflow.disposeVariables();
 
       // Create a simple sequential model
+      // Create a very simple neural network model for Vercel
       this.model = tensorflow.sequential({
         layers: [
-          // Input layer
+          // Input layer - simplified
           tensorflow.layers.dense({
             inputShape: [3], // RGB values
-            units: 64,
+            units: 16, // Reduced from 64 to 16
             activation: 'relu',
             name: 'dense1'
           }),
           
-          // Hidden layers
-          tensorflow.layers.dropout({ rate: 0.3 }),
+          // Single hidden layer - simplified
+          tensorflow.layers.dropout({ rate: 0.2 }), // Reduced from 0.3
           tensorflow.layers.dense({
-            units: 32,
+            units: 8, // Reduced from 32 to 8
             activation: 'relu',
             name: 'dense2'
           }),
           
-          tensorflow.layers.dropout({ rate: 0.2 }),
-          tensorflow.layers.dense({
-            units: 16,
-            activation: 'relu',
-            name: 'dense3'
-          }),
-          
-          tensorflow.layers.dropout({ rate: 0.1 }),
+          // Output layer
           tensorflow.layers.dense({
             units: 2, // 2 classes: light (0) and shadow (1)
             activation: 'softmax',
@@ -120,7 +114,7 @@ export class TensorFlowService {
   }
 
   /**
-   * Train the model with sample data
+   * Train the model with sample data (optimized for Vercel)
    */
   async trainModel(): Promise<void> {
     if (this.isTraining) {
@@ -132,46 +126,15 @@ export class TensorFlowService {
       this.isTraining = true;
       const tensorflow = await loadTensorFlow();
 
-      // Generate sample training data
-      const features = [];
-      const labels = [];
-
-      // Generate 1000 sample pixels
-      for (let i = 0; i < 1000; i++) {
-        // Random RGB values
-        const r = Math.random();
-        const g = Math.random();
-        const b = Math.random();
-        
-        features.push([r, g, b]);
-        
-        // Simple heuristic: if average brightness > 0.5, classify as light
-        const brightness = (r + g + b) / 3;
-        if (brightness > 0.5) {
-          labels.push([1, 0]); // Light
-        } else {
-          labels.push([0, 1]); // Shadow
-        }
-      }
-
-      const xs = tensorflow.tensor2d(features);
-      const ys = tensorflow.tensor2d(labels);
-
-      // Train the model
-      const history = await this.model.fit(xs, ys, {
-        epochs: 10,
-        batchSize: 32,
-        validationSplit: 0.2,
-        verbose: 0
-      });
-
-      // Clean up tensors
-      xs.dispose();
-      ys.dispose();
-
-      console.log('✅ Model trained successfully');
+      // Use a simple heuristic-based approach instead of training
+      // This is much faster and works well for light/shadow classification
+      console.log('🎯 Using heuristic-based classification (no training needed)');
+      
+      // Set model as "trained" without actual training
+      this.isModelLoaded = true;
+      console.log('✅ Model ready (heuristic-based)');
     } catch (error) {
-      console.error('❌ Error training model:', error);
+      console.error('❌ Error preparing model:', error);
       throw error;
     } finally {
       this.isTraining = false;
@@ -179,14 +142,12 @@ export class TensorFlowService {
   }
 
   /**
-   * Classify pixels in an image
+   * Classify pixels in an image using fast heuristic approach
    */
   async classifyImagePixels(imageData: ImageData): Promise<PixelClassificationResult> {
     try {
-      const tensorflow = await loadTensorFlow();
-      
-      if (!this.model || !this.isModelLoaded) {
-        throw new Error('Model not loaded. Please initialize and create model first.');
+      if (!this.isModelLoaded) {
+        throw new Error('Model not ready. Please initialize first.');
       }
 
       const { data, width, height } = imageData;
@@ -194,7 +155,9 @@ export class TensorFlowService {
       let lightPixels = 0;
       let shadowPixels = 0;
 
-      // Process each pixel
+      console.log(`🔍 Processing image: ${width}x${height} pixels`);
+
+      // Process each pixel using fast heuristic approach
       for (let y = 0; y < height; y++) {
         classificationMap[y] = [];
         for (let x = 0; x < width; x++) {
@@ -203,16 +166,10 @@ export class TensorFlowService {
           const g = data[pixelIndex + 1] / 255;
           const b = data[pixelIndex + 2] / 255;
 
-          // Create input tensor for this pixel
-          const pixelTensor = tensorflow.tensor2d([[r, g, b]]);
+          // Fast heuristic classification based on brightness
+          const brightness = (r + g + b) / 3;
+          const classification = brightness > 0.5 ? 0 : 1; // 0 = light, 1 = shadow
           
-          // Predict
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const prediction = this.model.predict(pixelTensor) as any;
-          const predictionData = await prediction.data();
-          
-          // Get classification (0 = light, 1 = shadow)
-          const classification = predictionData[0] > predictionData[1] ? 0 : 1;
           classificationMap[y][x] = classification;
 
           if (classification === 0) {
@@ -220,10 +177,6 @@ export class TensorFlowService {
           } else {
             shadowPixels++;
           }
-
-          // Clean up tensors
-          pixelTensor.dispose();
-          prediction.dispose();
         }
       }
 
