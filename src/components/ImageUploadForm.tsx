@@ -5,7 +5,7 @@ import { useFieldData } from '../hooks/useFieldData';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { apiService } from '../services/api';
 import { ProcessingResult } from '../types';
-import { formatFileSize, formatCoordinates } from '../utils/helpers';
+import { formatFileSize, formatCoordinates, compressImage, isFileSizeValid } from '../utils/helpers';
 import { Upload, X, Eye, Crop, MapPin, AlertCircle, Calendar } from 'lucide-react';
 import ImageViewModal from './ImageViewModal';
 import ImageCropModal from './ImageCropModal';
@@ -112,8 +112,23 @@ const ImageUploadForm: React.FC<ImageUploadFormProps> = ({ onUnsavedDataChange, 
 
     try {
       const processingPromises = images.map(async (imageFile) => {
+        let fileToProcess = imageFile.file;
+        
+        // Check if file needs compression
+        if (!isFileSizeValid(fileToProcess)) {
+          console.log(`📦 Compressing large image: ${fileToProcess.name} (${formatFileSize(fileToProcess.size)})`);
+          try {
+            fileToProcess = await compressImage(fileToProcess);
+            console.log(`✅ Image compressed successfully: ${formatFileSize(fileToProcess.size)}`);
+          } catch (compressionError) {
+            console.error('❌ Failed to compress image:', compressionError);
+            onNotification(`Error comprimiendo imagen ${fileToProcess.name}`, 'warning');
+            // Continue with original file
+          }
+        }
+
         const formDataToSend = new FormData();
-        formDataToSend.append('file', imageFile.file);
+        formDataToSend.append('file', fileToProcess);
         formDataToSend.append('empresa', formData.empresa);
         formDataToSend.append('fundo', formData.fundo);
         formDataToSend.append('sector', formData.sector);

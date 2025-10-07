@@ -25,6 +25,87 @@ export const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
+/**
+ * Compress image file to reduce size for API upload
+ * @param file - Original image file
+ * @param maxWidth - Maximum width (default: 1920)
+ * @param maxHeight - Maximum height (default: 1080)
+ * @param quality - JPEG quality 0-1 (default: 0.8)
+ * @returns Compressed file
+ */
+export const compressImage = async (
+  file: File, 
+  maxWidth: number = 1920, 
+  maxHeight: number = 1080, 
+  quality: number = 0.8
+): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calculate new dimensions maintaining aspect ratio
+      let { width, height } = img;
+      
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+      }
+      
+      // Set canvas dimensions
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Draw and compress
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              
+              console.log(`📦 Image compressed: ${formatFileSize(file.size)} → ${formatFileSize(compressedFile.size)}`);
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Failed to compress image'));
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      } else {
+        reject(new Error('Failed to get canvas context'));
+      }
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+/**
+ * Check if file size is within Vercel limits
+ * @param file - File to check
+ * @param maxSizeMB - Maximum size in MB (default: 4)
+ * @returns true if file is within limits
+ */
+export const isFileSizeValid = (file: File, maxSizeMB: number = 4): boolean => {
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  return file.size <= maxSizeBytes;
+};
+
 export const downloadFile = (content: string, filename: string, contentType: string = 'text/csv'): void => {
   const blob = new Blob([content], { type: contentType });
   const url = URL.createObjectURL(blob);

@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
   
   // External packages for server components
   serverExternalPackages: ['@tensorflow/tfjs', 'canvas'],
+  
+  // Increase body size limit for image uploads
+  experimental: {
+    serverComponentsExternalPackages: ['@tensorflow/tfjs', 'canvas'],
+  },
 };
 
 export default nextConfig;

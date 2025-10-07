@@ -8,6 +8,15 @@ import { extractDateTimeFromImageServer } from '../../../utils/exif-server';
 // Singleton instance for server-side TensorFlow
 let serverTensorFlowService: TensorFlowService | null = null;
 
+// Configure body size limit for this route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increase limit to 10MB
+    },
+  },
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
