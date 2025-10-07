@@ -43,10 +43,15 @@ export class TensorFlowService {
       // Load TensorFlow.js dynamically
       const tensorflow = await loadTensorFlow();
       
-      // Set backend to CPU for better compatibility
+      // Set backend to CPU for Vercel compatibility and speed
       await tensorflow.setBackend('cpu');
       await tensorflow.ready();
-      console.log('✅ TensorFlow.js initialized');
+      
+      // Optimize for Vercel: disable memory growth
+      tensorflow.env().set('WEBGL_PACK', false);
+      tensorflow.env().set('WEBGL_DELETE_TEXTURE_THRESHOLD', 0);
+      
+      console.log('✅ TensorFlow.js initialized (Vercel optimized)');
     } catch (error) {
       console.error('❌ Error initializing TensorFlow.js:', error);
       throw error;
@@ -70,26 +75,18 @@ export class TensorFlowService {
       tensorflow.disposeVariables();
 
       // Create a simple sequential model
-      // Create a very simple neural network model for Vercel
+      // Create ultra-simple model for Vercel (maximum efficiency)
       this.model = tensorflow.sequential({
         layers: [
-          // Input layer - simplified
+          // Input layer - ultra-simple
           tensorflow.layers.dense({
             inputShape: [3], // RGB values
-            units: 16, // Reduced from 64 to 16
+            units: 8, // Ultra-reduced for speed
             activation: 'relu',
-            name: 'dense1'
+            name: 'input'
           }),
           
-          // Single hidden layer - simplified
-          tensorflow.layers.dropout({ rate: 0.2 }), // Reduced from 0.3
-          tensorflow.layers.dense({
-            units: 8, // Reduced from 32 to 8
-            activation: 'relu',
-            name: 'dense2'
-          }),
-          
-          // Output layer
+          // Output layer - direct connection
           tensorflow.layers.dense({
             units: 2, // 2 classes: light (0) and shadow (1)
             activation: 'softmax',
@@ -114,7 +111,7 @@ export class TensorFlowService {
   }
 
   /**
-   * Train the model with sample data (optimized for Vercel)
+   * Train the model with minimal data (ultra-optimized for Vercel)
    */
   async trainModel(): Promise<void> {
     if (this.isTraining) {
@@ -126,15 +123,47 @@ export class TensorFlowService {
       this.isTraining = true;
       const tensorflow = await loadTensorFlow();
 
-      // Use a simple heuristic-based approach instead of training
-      // This is much faster and works well for light/shadow classification
-      console.log('🎯 Using heuristic-based classification (no training needed)');
-      
-      // Set model as "trained" without actual training
+      console.log('🚀 Training ultra-optimized model for Vercel...');
+
+      // Generate minimal training data (only 20 samples)
+      const features = [];
+      const labels = [];
+
+      for (let i = 0; i < 20; i++) {
+        const r = Math.random();
+        const g = Math.random();
+        const b = Math.random();
+        
+        features.push([r, g, b]);
+        
+        // Simple heuristic for training
+        const brightness = (r + g + b) / 3;
+        if (brightness > 0.5) {
+          labels.push([1, 0]); // Light
+        } else {
+          labels.push([0, 1]); // Shadow
+        }
+      }
+
+      const xs = tensorflow.tensor2d(features);
+      const ys = tensorflow.tensor2d(labels);
+
+      // Ultra-fast training: 1 epoch, no validation
+      await this.model.fit(xs, ys, {
+        epochs: 1, // Single epoch
+        batchSize: 20, // Process all data at once
+        validationSplit: 0, // No validation (saves time)
+        verbose: 0 // No logging
+      });
+
+      // Clean up tensors immediately
+      xs.dispose();
+      ys.dispose();
+
       this.isModelLoaded = true;
-      console.log('✅ Model ready (heuristic-based)');
+      console.log('✅ Ultra-optimized model trained successfully');
     } catch (error) {
-      console.error('❌ Error preparing model:', error);
+      console.error('❌ Error training model:', error);
       throw error;
     } finally {
       this.isTraining = false;
@@ -142,11 +171,13 @@ export class TensorFlowService {
   }
 
   /**
-   * Classify pixels in an image using fast heuristic approach
+   * Classify pixels using ultra-optimized TensorFlow.js (batch processing)
    */
   async classifyImagePixels(imageData: ImageData): Promise<PixelClassificationResult> {
     try {
-      if (!this.isModelLoaded) {
+      const tensorflow = await loadTensorFlow();
+      
+      if (!this.model || !this.isModelLoaded) {
         throw new Error('Model not ready. Please initialize first.');
       }
 
@@ -155,9 +186,14 @@ export class TensorFlowService {
       let lightPixels = 0;
       let shadowPixels = 0;
 
-      console.log(`🔍 Processing image: ${width}x${height} pixels`);
+      console.log(`🔍 Processing image: ${width}x${height} pixels with TensorFlow.js`);
 
-      // Process each pixel using fast heuristic approach
+      // Process pixels in batches for efficiency
+      const batchSize = 1000; // Process 1000 pixels at once
+      const totalPixels = width * height;
+      
+      // Prepare all pixel data
+      const allPixels: number[][] = [];
       for (let y = 0; y < height; y++) {
         classificationMap[y] = [];
         for (let x = 0; x < width; x++) {
@@ -165,22 +201,45 @@ export class TensorFlowService {
           const r = data[pixelIndex] / 255;
           const g = data[pixelIndex + 1] / 255;
           const b = data[pixelIndex + 2] / 255;
+          allPixels.push([r, g, b]);
+        }
+      }
 
-          // Fast heuristic classification based on brightness
-          const brightness = (r + g + b) / 3;
-          const classification = brightness > 0.5 ? 0 : 1; // 0 = light, 1 = shadow
+      // Process in batches
+      for (let i = 0; i < allPixels.length; i += batchSize) {
+        const batch = allPixels.slice(i, i + batchSize);
+        const batchTensor = tensorflow.tensor2d(batch);
+        
+        // Predict batch
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const predictions = this.model.predict(batchTensor) as any;
+        const predictionData = await predictions.data();
+        
+        // Process batch results
+        for (let j = 0; j < batch.length; j++) {
+          const pixelIndex = i + j;
+          const y = Math.floor(pixelIndex / width);
+          const x = pixelIndex % width;
+          
+          const lightProb = predictionData[j * 2];
+          const shadowProb = predictionData[j * 2 + 1];
+          const classification = lightProb > shadowProb ? 0 : 1;
           
           classificationMap[y][x] = classification;
-
+          
           if (classification === 0) {
             lightPixels++;
           } else {
             shadowPixels++;
           }
         }
+        
+        // Clean up tensors immediately
+        batchTensor.dispose();
+        predictions.dispose();
       }
 
-      const totalPixels = lightPixels + shadowPixels;
+      const totalPixelsProcessed = lightPixels + shadowPixels;
       const lightPercentage = (lightPixels / totalPixels) * 100;
       const shadowPercentage = (shadowPixels / totalPixels) * 100;
 
