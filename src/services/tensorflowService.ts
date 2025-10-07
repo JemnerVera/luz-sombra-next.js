@@ -111,7 +111,7 @@ export class TensorFlowService {
   }
 
   /**
-   * Train the model with minimal data (ultra-optimized for Vercel)
+   * Train the model with better data (hybrid approach for Vercel)
    */
   async trainModel(): Promise<void> {
     if (this.isTraining) {
@@ -123,36 +123,41 @@ export class TensorFlowService {
       this.isTraining = true;
       const tensorflow = await loadTensorFlow();
 
-      console.log('🚀 Training ultra-optimized model for Vercel...');
+      console.log('🚀 Training hybrid model for Vercel...');
 
-      // Generate minimal training data (only 20 samples)
+      // Generate better training data with more realistic patterns
       const features = [];
       const labels = [];
 
-      for (let i = 0; i < 20; i++) {
-        const r = Math.random();
-        const g = Math.random();
-        const b = Math.random();
+      // Generate 100 samples with more realistic light/shadow patterns
+      for (let i = 0; i < 100; i++) {
+        let r, g, b;
         
-        features.push([r, g, b]);
-        
-        // Simple heuristic for training
-        const brightness = (r + g + b) / 3;
-        if (brightness > 0.5) {
+        if (i < 50) {
+          // Light samples (bright colors)
+          r = 0.6 + Math.random() * 0.4; // 0.6-1.0
+          g = 0.6 + Math.random() * 0.4;
+          b = 0.6 + Math.random() * 0.4;
           labels.push([1, 0]); // Light
         } else {
+          // Shadow samples (darker colors)
+          r = Math.random() * 0.5; // 0.0-0.5
+          g = Math.random() * 0.5;
+          b = Math.random() * 0.5;
           labels.push([0, 1]); // Shadow
         }
+        
+        features.push([r, g, b]);
       }
 
       const xs = tensorflow.tensor2d(features);
       const ys = tensorflow.tensor2d(labels);
 
-      // Ultra-fast training: 1 epoch, no validation
+      // Better training: 5 epochs with validation
       await this.model.fit(xs, ys, {
-        epochs: 1, // Single epoch
-        batchSize: 20, // Process all data at once
-        validationSplit: 0, // No validation (saves time)
+        epochs: 5, // More epochs for better learning
+        batchSize: 25, // Smaller batches
+        validationSplit: 0.2, // Some validation
         verbose: 0 // No logging
       });
 
@@ -161,7 +166,7 @@ export class TensorFlowService {
       ys.dispose();
 
       this.isModelLoaded = true;
-      console.log('✅ Ultra-optimized model trained successfully');
+      console.log('✅ Hybrid model trained successfully');
     } catch (error) {
       console.error('❌ Error training model:', error);
       throw error;
@@ -171,7 +176,7 @@ export class TensorFlowService {
   }
 
   /**
-   * Classify pixels using ultra-optimized TensorFlow.js (batch processing)
+   * Classify image using region-based analysis (hybrid approach)
    */
   async classifyImagePixels(imageData: ImageData): Promise<PixelClassificationResult> {
     try {
@@ -186,60 +191,84 @@ export class TensorFlowService {
       let lightPixels = 0;
       let shadowPixels = 0;
 
-      console.log(`🔍 Processing image: ${width}x${height} pixels with TensorFlow.js`);
+      console.log(`🔍 Processing image: ${width}x${height} pixels with region-based analysis`);
 
-      // Process pixels in batches for efficiency
-      const batchSize = 1000; // Process 1000 pixels at once
-      const totalPixels = width * height;
-      
-      // Prepare all pixel data
-      const allPixels: number[][] = [];
+      // Initialize classification map
       for (let y = 0; y < height; y++) {
         classificationMap[y] = [];
-        for (let x = 0; x < width; x++) {
-          const pixelIndex = (y * width + x) * 4;
-          const r = data[pixelIndex] / 255;
-          const g = data[pixelIndex + 1] / 255;
-          const b = data[pixelIndex + 2] / 255;
-          allPixels.push([r, g, b]);
+      }
+
+      // Process image in regions (10x10 pixel blocks) for efficiency
+      const regionSize = 10;
+      const regions: number[][] = [];
+      const regionPositions: { x: number; y: number; width: number; height: number }[] = [];
+
+      // Sample regions from the image
+      for (let y = 0; y < height - regionSize; y += regionSize) {
+        for (let x = 0; x < width - regionSize; x += regionSize) {
+          // Calculate average color for this region
+          let totalR = 0, totalG = 0, totalB = 0;
+          let pixelCount = 0;
+
+          for (let dy = 0; dy < regionSize; dy++) {
+            for (let dx = 0; dx < regionSize; dx++) {
+              const pixelIndex = ((y + dy) * width + (x + dx)) * 4;
+              totalR += data[pixelIndex];
+              totalG += data[pixelIndex + 1];
+              totalB += data[pixelIndex + 2];
+              pixelCount++;
+            }
+          }
+
+          const avgR = (totalR / pixelCount) / 255;
+          const avgG = (totalG / pixelCount) / 255;
+          const avgB = (totalB / pixelCount) / 255;
+
+          regions.push([avgR, avgG, avgB]);
+          regionPositions.push({ x, y, width: regionSize, height: regionSize });
         }
       }
 
-      // Process in batches
-      for (let i = 0; i < allPixels.length; i += batchSize) {
-        const batch = allPixels.slice(i, i + batchSize);
-        const batchTensor = tensorflow.tensor2d(batch);
+      // Process all regions at once
+      if (regions.length > 0) {
+        const regionsTensor = tensorflow.tensor2d(regions);
         
-        // Predict batch
+        // Predict all regions
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const predictions = this.model.predict(batchTensor) as any;
+        const predictions = this.model.predict(regionsTensor) as any;
         const predictionData = await predictions.data();
         
-        // Process batch results
-        for (let j = 0; j < batch.length; j++) {
-          const pixelIndex = i + j;
-          const y = Math.floor(pixelIndex / width);
-          const x = pixelIndex % width;
-          
-          const lightProb = predictionData[j * 2];
-          const shadowProb = predictionData[j * 2 + 1];
+        // Apply results to classification map
+        for (let i = 0; i < regions.length; i++) {
+          const lightProb = predictionData[i * 2];
+          const shadowProb = predictionData[i * 2 + 1];
           const classification = lightProb > shadowProb ? 0 : 1;
           
-          classificationMap[y][x] = classification;
+          const pos = regionPositions[i];
           
-          if (classification === 0) {
-            lightPixels++;
-          } else {
-            shadowPixels++;
+          // Apply classification to entire region
+          for (let dy = 0; dy < pos.height; dy++) {
+            for (let dx = 0; dx < pos.width; dx++) {
+              const y = pos.y + dy;
+              const x = pos.x + dx;
+              if (y < height && x < width) {
+                classificationMap[y][x] = classification;
+                if (classification === 0) {
+                  lightPixels++;
+                } else {
+                  shadowPixels++;
+                }
+              }
+            }
           }
         }
         
-        // Clean up tensors immediately
-        batchTensor.dispose();
+        // Clean up tensors
+        regionsTensor.dispose();
         predictions.dispose();
       }
 
-      const totalPixelsProcessed = lightPixels + shadowPixels;
+      const totalPixels = lightPixels + shadowPixels;
       const lightPercentage = (lightPixels / totalPixels) * 100;
       const shadowPercentage = (shadowPixels / totalPixels) * 100;
 
